@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>uint5单词消消乐</title>
+    <style>
+        :root {
+            --bg-color: #FFF5E6;
+            --bubble-colors: #FFB3BA, #FFDFBA, #FFFFBA, #BAFFC9, #BAE1FF;
+        }
+
+        body {
+            background: var(--bg-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: 'Arial', sans-serif;
+            padding: 20px;
+            margin: 0;
+        }
+
+        h1 {
+            color: #2C3E50;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .game-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 15px;
+            width: 100%;
+            max-width: 1200px;
+            padding: 20px;
+            margin: 0 auto;
+        }
+
+        .bubble {
+            background: linear-gradient(145deg, var(--bubble-color) 0%, #fff 100%);
+            border-radius: 50%;
+            padding: 20px;
+            font-size: 1.1rem;
+            font-weight: 900;
+            color: #2C3E50;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.2),
+                       inset 0 -8px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            aspect-ratio: 1;
+            position: relative;
+            transform-style: preserve-3d;
+        }
+
+        .bubble::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: linear-gradient(145deg, rgba(255,255,255,0.8), rgba(0,0,0,0.1));
+            transform: translateZ(-1px);
+        }
+
+        .bubble:hover {
+            transform: scale(1.05) rotateX(10deg);
+        }
+
+        .bubble.active {
+            filter: brightness(0.9);
+            transform: scale(0.95);
+        }
+
+        .bubble.matched {
+            animation: pop 0.6s ease forwards;
+        }
+
+        @keyframes pop {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.8); opacity: 0; }
+        }
+
+        #status {
+            font-size: 1.2rem;
+            color: #2C3E50;
+            margin: 15px 0;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 1rem;
+            background: #2C3E50;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: transform 0.3s;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <h1>uint5单词消消乐</h1>
+    <div id="status">剩余配对：16</div>
+    <div class="game-container" id="gameContainer"></div>
+    <button onclick="initGame()">重新开始</button>
+
+<script>
+const wordPairs = {
+    "非理性复兴": "the renaissance of the irrational",
+    "超心理学": "parapsychology",
+    "神奇治疗": "miracle cures",
+    "超脱禅定法": "transcendental meditation",
+    "瞬间彻悟": "instant enlightenment",
+    "神学家": "theologian",
+    "镇邪压魔": "vain observances",
+    "人类学": "anthropology",
+    "占卜": "divination",
+    "求神问卦": "consulting oracles",
+    "盲目崇拜": "idolatry",
+    "护符": "juju",
+    "真神错敬": "improper worship of the True God",
+    "圣坛": "altar",
+    "神灵": "the Deity",
+    "原始宗教": "crude religion",
+    "教化": "the teaching",
+    "正统宗教": "formal religion",
+    "仁爱之神": "God of Love",
+    "精神分析学家": "psychoanalyst",
+    "强迫症": "compulsion neurosis",
+    "正统的犹太教徒": "Orthodox Jews",
+    "星相": "astrology",
+    "罗马天主教": "Roman Catholic",
+    "爱尔兰新教徒": "Orangemen"
+};
+
+let selectedBubbles = [];
+let matchedPairs = 0;
+const totalPairs = Object.keys(wordPairs).length;
+let audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+function initGame() {
+    const container = document.getElementById('gameContainer');
+    container.innerHTML = '';
+    selectedBubbles = [];
+    matchedPairs = 0;
+    document.getElementById('status').textContent = `剩余配对：${totalPairs}`;
+
+    // 创建并随机排列泡泡
+    const bubbles = [];
+    Object.entries(wordPairs).forEach(([ch, en]) => {
+        bubbles.push(createBubble(ch), createBubble(en));
+    });
+    shuffleArray(bubbles).forEach(bubble => container.appendChild(bubble));
+}
+
+function createBubble(text) {
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = text;
+    bubble.dataset.text = text;
+    
+    // 随机分配颜色
+    const colors = getComputedStyle(document.documentElement)
+        .getPropertyValue('--bubble-colors').split(',');
+    bubble.style.setProperty('--bubble-color', 
+        colors[Math.floor(Math.random()*colors.length)].trim());
+    
+    bubble.addEventListener('click', handleBubbleClick);
+    return bubble;
+}
+
+function handleBubbleClick(e) {
+    const bubble = e.target;
+    if (bubble.classList.contains('matched') || selectedBubbles.includes(bubble)) return;
+
+    if (selectedBubbles.length === 0) {
+        selectedBubbles.push(bubble);
+        bubble.classList.add('active');
+        playSound('select');
+    } else {
+        const [first] = selectedBubbles;
+        selectedBubbles = [];
+        
+        if (isMatch(first, bubble)) {
+            handleMatch(first, bubble);
+        } else {
+            handleMismatch(first, bubble);
+        }
+    }
+}
+
+function isMatch(b1, b2) {
+    return wordPairs[b1.dataset.text] === b2.dataset.text || 
+           wordPairs[b2.dataset.text] === b1.dataset.text;
+}
+
+function handleMatch(b1, b2) {
+    playSound('success');
+    [b1, b2].forEach(b => {
+        b.classList.add('matched');
+        b.style.pointerEvents = 'none';
+    });
+    matchedPairs++;
+    document.getElementById('status').textContent = `剩余配对：${totalPairs - matchedPairs}`;
+    checkWin();
+}
+
+function handleMismatch(b1, b2) {
+    playSound('error');
+    setTimeout(() => {
+        b1.classList.remove('active');
+        b2.classList.remove('active');
+    }, 800);
+}
+
+function checkWin() {
+    if (matchedPairs === totalPairs) {
+        playSound('victory');
+        setTimeout(() => alert('🎉 恭喜你挑战成功！'), 500);
+    }
+}
+
+function playSound(type) {
+    const freqMap = {
+        select: [800],
+        success: [1200, 800],
+        error: [400, 300],
+        victory: [1000, 1200, 800]
+    };
+
+    freqMap[type].forEach((freq, i) => {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        
+        osc.type = type === 'error' ? 'square' : 'sine';
+        osc.frequency.setValueAtTime(freq, audioContext.currentTime + i*0.1);
+        gain.gain.setValueAtTime(0.2, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+        
+        osc.start();
+        osc.stop(audioContext.currentTime + 0.5);
+    });
+}
+
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+
+// 初始化游戏
+initGame();
+</script>
+</body>
+</html>
